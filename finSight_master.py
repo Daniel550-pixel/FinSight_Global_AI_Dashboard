@@ -1,4 +1,9 @@
 import os
+START_STREAMLIT = os.getenv("START_STREAMLIT","false").lower() == "true"
+if not START_STREAMLIT:
+    print("[INFO] Streamlit auto-start is uitgeschakeld. Terminal blijft open voor coderen.")
+    exit()
+import os
 START_STREAMLIT = os.getenv("START_STREAMLIT","true").lower() == "true"
 if not START_STREAMLIT:
     print("[INFO] Streamlit auto-start is uitgeschakeld. Je kunt coderen zonder dat de terminal wordt geblokkeerd.")

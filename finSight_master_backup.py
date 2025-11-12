@@ -8,6 +8,11 @@ START_STREAMLIT = os.getenv("START_STREAMLIT","true").lower() == "true"
 if not START_STREAMLIT:
     print("[INFO] Streamlit auto-start is uitgeschakeld. Je kunt coderen zonder dat de terminal wordt geblokkeerd.")
     exit()
+import os
+START_STREAMLIT = os.getenv("START_STREAMLIT","true").lower() == "true"
+if not START_STREAMLIT:
+    print("[INFO] Streamlit auto-start is uitgeschakeld. Je kunt coderen zonder dat de terminal wordt geblokkeerd.")
+    exit()
 import streamlit as st
 import os
 from utils import validate_keys
