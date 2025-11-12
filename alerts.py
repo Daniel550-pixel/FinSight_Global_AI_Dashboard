@@ -1,3 +1,2 @@
-# Alerts (Slack + Email)
 def send_alert(message):
-    print(f'[ALERT] {message}')
+    print(f"[ALERT] {message}")

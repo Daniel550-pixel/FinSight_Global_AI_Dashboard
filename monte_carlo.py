@@ -1,4 +1,3 @@
-# Monte Carlo forecast
 import numpy as np
 def monte_carlo_forecast(initial_investment, years=50, simulations=1000):
     results=[]

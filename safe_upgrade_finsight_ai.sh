@@ -1,2 +1,3 @@
+#!/bin/bash
 # Veilige wrapper voor upgrades
-# Voeg hier je safe wrapper code toe
+echo "[INFO] Safe upgrade wrapper placeholder"

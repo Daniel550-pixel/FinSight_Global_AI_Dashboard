@@ -1,2 +1,3 @@
-# Upgrade script placeholder
-# Voeg hier je volledige upgrade code toe of run safe_upgrade_finsight_ai.sh
+#!/bin/bash
+# Voeg hier je upgrade code toe
+echo "[INFO] Upgrade script placeholder"
