@@ -26,3 +26,15 @@
 2025-11-19 10:57:52 - *.tmp
 2025-11-19 10:57:52 - *.jtx
 2025-11-19 10:58:19 - git add features
+2025-11-19 10:58:19 - git add full_reactivation.ps1
+2025-11-19 10:58:19 - git commit -m "Full-scale sovereign AI scaffold"
+2025-11-19 10:58:19 - git push -u origin full-reactivation
+2025-11-19 10:58:53 - git config --global user.name "Your Name"
+2025-11-19 10:58:53 - git config --global user.email "you@example.com"
+2025-11-19 10:58:58 - AppData/
+2025-11-19 10:58:58 - *.log
+2025-11-19 10:58:58 - *.tmp
+2025-11-19 10:58:58 - *.jtx
+2025-11-19 10:59:07 - cd C:\Users\salde\dev\international
+2025-11-19 10:59:07 - .\full_reactivation.ps1
+2025-11-19 10:59:13 - git add features full_reactivation.ps1
