@@ -1,0 +1,22 @@
+"""[Unit]
+Description=Sovereign AI Watch + Feature Productivity Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=sovereign
+Group=sovereign
+WorkingDirectory=/opt/sovereign-ai-watch
+# Adjust path to python and script location
+ExecStart=/usr/bin/python3 /opt/sovereign-ai-watch/sovereign_ai_watch.py
+Restart=always
+RestartSec=5
+Environment=SIW_BASE_DIR=/opt/sovereign-ai-watch/features
+Environment=SIW_REPO_DIR=/opt/sovereign-ai-watch
+Environment=SIW_REMOTE_URL=https://github.com/Daniel550-pixel/FinSight_Global_AI_Dashboard.git
+Environment=SIW_BRANCH=sovereign-ai-watch-improvements
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target"""
