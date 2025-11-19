@@ -38,3 +38,120 @@
 2025-11-19 10:59:07 - cd C:\Users\salde\dev\international
 2025-11-19 10:59:07 - .\full_reactivation.ps1
 2025-11-19 10:59:13 - git add features full_reactivation.ps1
+2025-11-19 10:59:13 - git commit -m "Full-scale sovereign AI scaffold"
+2025-11-19 10:59:13 - git push -u origin full-reactivation
+2025-11-19 11:00:29 - foreach ($s in $sectors) {
+2025-11-19 11:00:29 -     $dir = "features/ai/sectors/$s"
+2025-11-19 11:00:29 -     New-Item -ItemType Directory -Force -Path $dir
+2025-11-19 11:00:29 - 
+2025-11-19 11:00:29 -     $content = @"
+2025-11-19 11:00:29 - def analyze_$s(data):
+2025-11-19 11:00:30 -     return 'Analysis placeholder for $s sector'
+2025-11-19 11:00:30 - "@
+2025-11-19 11:00:30 - 
+2025-11-19 11:00:30 -     $content | Out-File -Encoding utf8 "$dir/analysis.py"
+2025-11-19 11:00:30 - }
+2025-11-19 11:00:37 - while ($true) {
+2025-11-19 11:00:37 -     $cmd = Read-Host "Sovereign AI terminal"
+2025-11-19 11:00:37 -     Invoke-Expression $cmd   # Only small PowerShell commands here
+2025-11-19 11:00:39 - }
+2025-11-19 11:01:57 - # ===============================
+2025-11-19 11:01:57 - # Full Sovereign AI Scaffold
+2025-11-19 11:01:57 - # PowerShell version (Safe, terminal-stay-open)
+2025-11-19 11:01:57 - # ===============================
+2025-11-19 11:01:57 - 
+2025-11-19 11:01:57 - # Set the script directory
+2025-11-19 11:01:57 - $SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Definition
+2025-11-19 11:01:57 - Set-Location $SCRIPT_DIR
+2025-11-19 11:01:57 - 
+2025-11-19 11:01:57 - # -------------------------------
+2025-11-19 11:01:57 - # Git setup (skip locked/index errors)
+2025-11-19 11:01:57 - # -------------------------------
+2025-11-19 11:01:57 - try { git init } catch {}
+2025-11-19 11:01:58 - try { git checkout -b full-reactivation } catch {}
+2025-11-19 11:01:58 - 
+2025-11-19 11:01:58 - # -------------------------------
+2025-11-19 11:01:58 - # Create feature directories
+2025-11-19 11:01:58 - # -------------------------------
+2025-11-19 11:01:58 - $featureDirs = @(
+2025-11-19 11:01:58 -     "features/security",
+2025-11-19 11:01:58 -     "features/data",
+2025-11-19 11:01:58 -     "features/ai/sectors",
+2025-11-19 11:01:58 -     "features/workflow/ministries",
+2025-11-19 11:01:58 -     "features/compliance",
+2025-11-19 11:01:58 -     "features/infrastructure"
+2025-11-19 11:01:58 - )
+2025-11-19 11:01:58 - 
+2025-11-19 11:01:58 - foreach ($dir in $featureDirs) {
+2025-11-19 11:01:58 -     New-Item -ItemType Directory -Force -Path $dir | Out-Null
+2025-11-19 11:01:58 - }
+2025-11-19 11:01:58 - 
+2025-11-19 11:01:58 - # -------------------------------
+2025-11-19 11:01:58 - # Define scaffolds
+2025-11-19 11:01:58 - # -------------------------------
+2025-11-19 11:01:58 - $sectors = "finance","energy","health","education","transport","agriculture","technology","manufacturing","utilities"
+2025-11-19 11:01:58 - $ministries = "economy","finance","interior","energy","health","education","defense","digitalgov","municipalities","transport"
+2025-11-19 11:01:58 - $compliance = "iso","nesa","gdpr","soc2","local_data_laws","sovereign_cloud"
+2025-11-19 11:01:58 - $global_hooks = "multi_region_pipeline","sovereign_data_sync","airgap_mode","alerts_notifications","dashboard_ui"
+2025-11-19 11:01:58 - 
+2025-11-19 11:01:58 - # -------------------------------
+2025-11-19 11:01:58 - # Generate sector Python files
+2025-11-19 11:01:58 - # -------------------------------
+2025-11-19 11:01:58 - foreach ($s in $sectors) {
+2025-11-19 11:01:58 -     $dir = "features/ai/sectors/$s"
+2025-11-19 11:01:58 -     New-Item -ItemType Directory -Force -Path $dir | Out-Null
+2025-11-19 11:01:58 - 
+2025-11-19 11:01:58 -     $content = @"
+2025-11-19 11:01:58 - def analyze_$s(data):
+2025-11-19 11:01:58 -     return 'Analysis placeholder for $s sector'
+2025-11-19 11:01:58 - "@
+2025-11-19 11:01:58 -     $content | Out-File -Encoding utf8 "$dir/analysis.py"
+2025-11-19 11:01:58 - }
+2025-11-19 11:01:58 - 
+2025-11-19 11:01:59 - # -------------------------------
+2025-11-19 11:01:59 - # Generate ministry Python files
+2025-11-19 11:01:59 - # -------------------------------
+2025-11-19 11:01:59 - foreach ($m in $ministries) {
+2025-11-19 11:01:59 -     $dir = "features/workflow/ministries/$m"
+2025-11-19 11:01:59 -     New-Item -ItemType Directory -Force -Path $dir | Out-Null
+2025-11-19 11:01:59 - 
+2025-11-19 11:01:59 -     $content = @"
+2025-11-19 11:01:59 - def manage_$m(task):
+2025-11-19 11:01:59 -     return 'Workflow automation placeholder for $m ministry'
+2025-11-19 11:01:59 - "@
+2025-11-19 11:01:59 -     $content | Out-File -Encoding utf8 "$dir/workflow.py"
+2025-11-19 11:01:59 - }
+2025-11-19 11:01:59 - 
+2025-11-19 11:01:59 - # -------------------------------
+2025-11-19 11:01:59 - # Generate compliance Python files
+2025-11-19 11:01:59 - # -------------------------------
+2025-11-19 11:01:59 - foreach ($c in $compliance) {
+2025-11-19 11:01:59 -     $dir = "features/compliance/$c"
+2025-11-19 11:01:59 -     New-Item -ItemType Directory -Force -Path $dir | Out-Null
+2025-11-19 11:01:59 - 
+2025-11-19 11:01:59 -     $content = @"
+2025-11-19 11:01:59 - def check_$c(system):
+2025-11-19 11:01:59 -     return 'Compliance check placeholder for $c standard'
+2025-11-19 11:01:59 - "@
+2025-11-19 11:01:59 -     $content | Out-File -Encoding utf8 "$dir/check.py"
+2025-11-19 11:01:59 - }
+2025-11-19 11:01:59 - 
+2025-11-19 11:01:59 - # -------------------------------
+2025-11-19 11:01:59 - # Generate global deployment hooks
+2025-11-19 11:01:59 - # -------------------------------
+2025-11-19 11:01:59 - foreach ($h in $global_hooks) {
+2025-11-19 11:01:59 -     $dir = "features/infrastructure/$h"
+2025-11-19 11:01:59 -     New-Item -ItemType Directory -Force -Path $dir | Out-Null
+2025-11-19 11:01:59 - 
+2025-11-19 11:01:59 -     $content = @"
+2025-11-19 11:01:59 - def $h():
+2025-11-19 11:01:59 -     return 'Global deployment hook: $h'
+2025-11-19 11:01:59 - "@
+2025-11-19 11:01:59 -     $content | Out-File -Encoding utf8 "$dir/$h.py"
+2025-11-19 11:01:59 - }
+2025-11-19 11:01:59 - 
+2025-11-19 11:01:59 - # -------------------------------
+2025-11-19 11:01:59 - # Initialize Git commit (skip errors if no author set)
+2025-11-19 11:02:00 - # -------------------------------
+2025-11-19 11:02:00 - try {
+2025-11-19 11:02:00 -     git add features
