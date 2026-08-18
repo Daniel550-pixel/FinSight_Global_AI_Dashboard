@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ULTRON Neural Intelligence System</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+  * { font-family: 'JetBrains Mono', monospace; }
+  body { background: #0a0e1a; color: #f0f4f4; }
+  .glass { background: rgba(12,12,12,0.6); backdrop-filter: blur(12px); border: 1px solid rgba(0,229,255,0.2); }
+  .cyan-glow { box-shadow: 0 0 15px rgba(0,229,255,0.15); }
+  .scroll-hide::-webkit-scrollbar { display: none; }
+  .orbit-ring { position: absolute; border-radius: 50%; border: 1px solid rgba(0,229,255,0.3); }
+  .layer-strip { transition: all 0.2s; cursor: pointer; }
+  .layer-strip:hover { background: rgba(0,229,255,0.1); border-color: rgba(0,229,255,0.5); }
+  .gauge-bg { stroke: rgba(255,255,255,0.1); }
+  .gauge-fill { stroke: #d4ff00; transition: stroke-dashoffset 1s ease; }
+  .blink { animation: blink 1.5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  #orb-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+  .orb-container { position: relative; }
+</style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+<!-- TOP NAV -->
+<header class="h-14 border-b border-[#00e5ff]/20 bg-[#0c0c0c]/80 flex items-center justify-between px-4 shrink-0">
+  <div class="flex items-center gap-6">
+    <div class="flex items-center gap-2">
+      <div class="w-8 h-8 rounded-full border border-[#00e5ff]/60 flex items-center justify-center">
+        <i data-lucide="orbit" class="text-[#00e5ff] w-5 h-5"></i>
+      </div>
+      <span class="text-[#00e5ff] font-bold text-sm tracking-wider">JARVIS</span>
+    </div>
+    <nav class="flex items-center gap-1" id="topNav"></nav>
+  </div>
+  <div class="flex items-center gap-3">
+    <span class="px-3 py-1 rounded-md bg-[#ff006e]/20 border border-[#ff006e]/40 text-[#ff006e] text-xs font-bold">SOKOVIA</span>
+    <span class="px-3 py-1 rounded-md bg-[#ffd700]/20 border border-[#ffd700]/40 text-[#ffd700] text-xs font-bold">EXECUTIVE</span>
+    <div class="w-2 h-2 rounded-full bg-[#00ff88] blink"></div>
+    <span class="text-[#00ff88] text-xs font-bold">READY</span>
+  </div>
+</header>
+
+<div class="flex flex-1 overflow-hidden">
+  <!-- LEFT SIDEBAR -->
+  <aside class="w-64 border-r border-[#00e5ff]/20 bg-[#0c0c0c]/50 flex flex-col shrink-0 scroll-hide overflow-y-auto">
+    <div class="p-4 border-b border-[#00e5ff]/20">
+      <div class="flex items-center gap-2 text-xs text-[#00e5ff] mb-2"><i data-lucide="globe" class="w-3 h-3"></i> UAE</div>
+      <div class="ml-4 space-y-1 text-xs">
+        <div class="flex items-center gap-2 text-[#00e5ff]"><i data-lucide="chevron-down" class="w-3 h-3"></i> Dubai</div>
+        <div class="ml-4 space-y-1">
+          <div class="flex items-center gap-2 text-[#00e5ff]"><i data-lucide="chevron-down" class="w-3 h-3"></i> Downtown</div>
+          <div class="ml-4 flex items-center gap-2 text-[#00e5ff]"><i data-lucide="chevron-down" class="w-3 h-3"></i> B-4471</div>
+        </div>
+      </div>
+    </div>
+    <div class="p-2"><div class="px-3 py-2 rounded-lg bg-[#00e5ff]/20 border border-[#00e5ff]/40 text-[#00e5ff] text-xs">Tower 30</div></div>
+    <nav class="flex-1 p-2 space-y-1" id="sideNav"></nav>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="flex-1 overflow-y-auto p-4 scroll-hide">
+    <div class="grid grid-cols-12 gap-4 h-full">
+      
+      <!-- TOP LEFT: TOWER + LAYERS -->
+      <div class="col-span-5 space-y-4">
+        <div class="glass rounded-lg p-4 cyan-glow">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-lg font-bold text-[#00e5ff]">Tower B-4471 • Downtown Dubai</h2>
+              <p class="text-xs text-[#5a6478]">UAE > Dubai > Downtown > B-4471</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-6">
+            <!-- ORB VISUAL -->
+            <div class="w-48 h-48 relative shrink-0 orb-container">
+              <canvas id="orb-canvas" class="absolute inset-0 w-full h-full"></canvas>
+              <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div class="w-16 h-16 rounded-full border-2 border-[#00e5ff]/60 flex items-center justify-center z-10 bg-[#0c0c0c]/80 backdrop-blur-sm">
+                  <div class="w-8 h-8 rounded-full bg-[#00e5ff] animate-pulse"></div>
+                </div>
+              </div>
+              <div class="orbit-ring w-40 h-40 top-4 left-4" style="transform: rotate(-30deg)"></div>
+              <div class="orbit-ring w-36 h-36 top-6 left-6 border-[#00ff88]/40" style="transform: rotate(30deg)"></div>
+              <div class="orbit-ring w-32 h-32 top-8 left-8 border-[#ffd700]/50"></div>
+            </div>
+            <!-- LAYERS -->
+            <div class="flex-1 space-y-2" id="layerList"></div>
+          </div>
+        </div>
+
+        <!-- ASSET PULSE -->
+        <div class="glass rounded-lg p-4 cyan-glow">
+          <div class="flex items-center gap-2 mb-4"><i data-lucide="activity" class="w-4 h-4 text-[#00e5ff]"></i><h3 class="text-sm font-bold text-[#00e5ff]">ASSET PULSE & CARBON LEDGER</h3></div>
+          <div class="grid grid-cols-3 gap-4">
+            <!-- GAUGE -->
+            <div class="col-span-1 flex flex-col items-center justify-center">
+              <svg width="120" height="120" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="50" fill="none" class="gauge-bg" stroke-width="12"/>
+                <circle cx="60" cy="60" r="50" fill="none" class="gauge-fill" stroke-width="12" stroke-dasharray="314" stroke-dashoffset="47" transform="rotate(-90 60 60)"/>
+                <text x="60" y="65" text-anchor="middle" fill="#d4ff00" font-size="28" font-weight="bold">85</text>
+              </svg>
+              <span class="text-xs text-[#5a6478] mt-1">VITALITY INDEX</span>
+            </div>
+            <!-- METRICS -->
+            <div class="col-span-2 space-y-3">
+              <div class="flex items-center gap-2 mb-1"><i data-lucide="brain" class="w-3 h-3 text-[#00e5ff]"></i><span class="text-xs font-bold text-[#00e5ff]">J.A.R.V.I.S. NARRATIVE INTELLIGENCE</span></div>
+              <p class="text-[10px] text-[#5a6478] leading-relaxed">"Your building lost 3 vitality points month-on-month from 88 to 85, the thermal drift and VAV damper underperforming on Floors 44 to 58. Recommended action: Auto-calibrate carbon condenser across 3-4 vitality and save 48,000 AED monthly cooling."</p>
+              <div class="grid grid-cols-2 gap-2 text-xs mt-3">
+                <div class="flex justify-between"><span class="text-[#5a6478]">STRUCTURAL</span><span class="text-[#00e5ff]">92/100</span></div>
+                <div class="w-full h-1 bg-[#ffffff]/10 rounded col-span-2"><div class="h-full w-[92%] bg-[#00e5ff]"></div></div>
+                <div class="flex justify-between"><span class="text-[#5a6478]">SYSTEM HEALTH</span><span class="text-[#ff6b35]">4.8°C</span></div>
+                <div class="w-full h-1 bg-[#ffffff]/10 rounded col-span-2"><div class="h-full w-[60%] bg-[#ff6b35]"></div></div>
+                <div class="flex justify-between"><span class="text-[#5a6478]">ENERGY</span><span class="text-[#00ff88]">112 MWh/m²</span></div>
+                <div class="w-full h-1 bg-[#ffffff]/10 rounded col-span-2"><div class="h-full w-[75%] bg-[#00ff88]"></div></div>
+                <div class="flex justify-between"><span class="text-[#5a6478]">CARBON</span><span class="text-[#d4ff00]">4120 t/yr</span></div>
+                <div class="w-full h-1 bg-[#ffffff]/10 rounded col-span-2"><div class="h-full w-[70%] bg-[#d4ff00]"></div></div>
+                <div class="flex justify-between"><span class="text-[#5a6478]">FINANCIAL</span><span class="text-[#ffd700]">7.8% yield</span></div>
+                <div class="w-full h-1 bg-[#ffffff]/10 rounded col-span-2"><div class="h-full w-[65%] bg-[#ffd700]"></div></div>
+              </div>
+            </div>
+          </div>
+          <!-- SENSORS -->
+          <div class="grid grid-cols-2 gap-3 mt-4" id="sensorGrid"></div>
+        </div>
+      </div>
+
+      <!-- TOP RIGHT: MAP -->
+      <div class="col-span-4 glass rounded-lg p-4 cyan-glow flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-2"><i data-lucide="shield" class="w-4 h-4 text-[#00e5ff]"></i><div><h3 class="text-xs font-bold text-[#00e5ff]">GLOBAL THREAT OVERLAY (03)</h3><p class="text-[10px] text-[#5a6478]">BORDER LOGISTICS</p></div></div>
+          <div class="flex gap-2">
+            <button class="px-2 py-1 rounded bg-[#00e5ff]/20 text-[#00e5ff] text-[9px]">ALL</button>
+            <button class="px-2 py-1 rounded text-[#5a6478] text-[9px]">MARITIME</button>
+            <button class="px-2 py-1 rounded text-[#5a6478] text-[9px]">FREIGHT</button>
+          </div>
+        </div>
+        <div id="map" class="w-full h-64 rounded-lg border border-[#00e5ff]/20 bg-[#0a0e1a] z-0"></div>
+        <div class="mt-3 p-3 border border-[#00e5ff]/20 rounded-lg bg-[#0a0e1a]/50">
+          <div class="flex items-center justify-between mb-2"><span class="text-xs font-bold text-[#00e5ff]">DUBAI</span><button class="text-[10px] text-[#00e5ff] hover:underline">VISUALIZE</button></div>
+          <div class="space-y-1 text-[10px]">
+            <div class="flex justify-between"><span class="text-[#5a6478]">Population:</span><span class="text-[#f0f4f4]">3.88M</span></div>
+            <div class="flex justify-between"><span class="text-[#5a6478]">GDP Contribution:</span><span class="text-[#f0f4f4]">AED 486B</span></div>
+            <div class="flex justify-between"><span class="text-[#5a6478]">Active Developments:</span><span class="text-[#f0f4f4]">1,247</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTTOM RIGHT: MARKETPLACE & INTELLIGENCE -->
+      <div class="col-span-3 space-y-4">
+        <div class="glass rounded-lg p-4 cyan-glow">
+          <div class="flex items-center gap-2 mb-4"><i data-lucide="trending-up" class="w-4 h-4 text-[#00e5ff]"></i><h3 class="text-sm font-bold text-[#00e5ff]">MARKETPLACE & INTELLIGENCE</h3></div>
+          <div class="space-y-2" id="marketplaceList"></div>
+        </div>
+        <div class="glass rounded-lg p-4 cyan-glow">
+          <div class="flex items-center gap-2 mb-4"><i data-lucide="brain" class="w-4 h-4 text-[#00e5ff]"></i><h3 class="text-sm font-bold text-[#00e5ff]">INTELLIGENCE ENGINE</h3></div>
+          <div class="space-y-3">
+            <div class="p-3 border border-[#00e5ff]/20 rounded-lg bg-[#0a0e1a]/50">
+              <div class="flex items-center justify-between mb-2"><span class="text-[9px] text-[#00e5ff]">FACT</span><span class="text-[9px] text-[#5a6478]">07:42 GST</span></div>
+              <h4 class="text-xs font-bold text-[#f0f4f4] mb-1">Dubai Metro Blue Line Completion - Q4 2026</h4>
+              <p class="text-[10px] text-[#5a6478]">RTA Official • 97% conf</p>
+              <div class="mt-2 flex items-center gap-2"><span class="text-[9px] text-[#00ff88]">Rel 0.94</span></div>
+            </div>
+            <div class="flex gap-2">
+              <button class="flex-1 py-1.5 rounded border border-[#ffffff]/20 text-[#5a6478] text-[9px] hover:text-[#00e5ff] hover:border-[#00e5ff]/40 transition-all">Fact</button>
+              <button class="flex-1 py-1.5 rounded border border-[#ffffff]/20 text-[#5a6478] text-[9px] hover:text-[#00e5ff] hover:border-[#00e5ff]/40 transition-all">Analysis</button>
+              <button class="flex-1 py-1.5 rounded border border-[#ffffff]/20 text-[#5a6478] text-[9px] hover:text-[#00e5ff] hover:border-[#00e5ff]/40 transition-all">Forecast</button>
+            </div>
+            <div class="pt-3 border-t border-[#ffffff]/10">
+              <h5 class="text-[10px] text-[#5a6478] mb-2">Visual Correlations</h5>
+              <div class="flex items-center justify-center py-4"><div class="w-16 h-16 rounded-full border border-[#00e5ff]/30 flex items-center justify-center"><i data-lucide="database" class="w-6 h-6 text-[#00e5ff]/50"></i></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- BOTTOM BAR -->
+<footer class="h-10 border-t border-[#00e5ff]/20 bg-[#0c0c0c]/80 flex items-center justify-between px-4 shrink-0">
+  <div class="flex items-center gap-2 text-xs text-[#5a6478]">
+    <span>UAE</span><i data-lucide="chevron-right" class="w-3 h-3"></i><span>Dubai</span><i data-lucide="chevron-right" class="w-3 h-3"></i><span>Downtown</span><i data-lucide="chevron-right" class="w-3 h-3"></i><span class="text-[#00e5ff]">B-4471</span><i data-lucide="chevron-right" class="w-3 h-3"></i><span class="text-[#00e5ff]">Isometric Exploded</span>
+  </div>
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2"><i data-lucide="cpu" class="w-3 h-3 text-[#00e5ff]"></i><span class="text-[10px] text-[#5a6478]">NEURAL ACTIVITY</span><span class="text-[10px] text-[#00e5ff]">(64 OPS)</span></div>
+    <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-[#00e5ff] blink"></div><span class="text-[10px] text-[#5a6478]">Standby</span></div>
+    <button class="px-3 py-1 rounded border border-[#d4ff00]/40 text-[#d4ff00] text-[10px] hover:bg-[#d4ff00]/20 transition-all">Simulate Alert</button>
+    <button class="px-3 py-1 rounded border border-[#00e5ff]/40 text-[#00e5ff] text-[10px] hover:bg-[#00e5ff]/20 transition-all">"Good morning, JARVIS"</button>
+    <button class="px-3 py-1 rounded border border-[#00e5ff]/40 text-[#00e5ff] text-[10px] hover:bg-[#00e5ff]/20 transition-all">"UAE Trade Briefing"</button>
+  </div>
+</footer>
+
+<script>
+  // INIT LUCIDE
+  lucide.createIcons();
+
+  // DATA
+  const navItems = ['Orb Core','World Model','Intelligence','Experience','Pulse & Carbon','Marketplace Hub','Settings'];
+  const sideItems = [{n:'Experience',i:'layers'},{n:'Alerts',i:'bell',badge:3},{n:'Tasks',i:'check-square',badge:7},{n:'Reports',i:'file-text'},{n:'Settings',i:'settings'}];
+  const layers = ['Landscape','Interior','Plumbing','Electrical','Facade','Floor Plates','Structural Core','Foundation'];
+  const sensors = [
+    {id:'sens-strain-162',label:'sens-strain-162',val:'142.4',unit:'MPa'},
+    {id:'sens-accel-spire',label:'sens-accel-spire',val:'0.012',unit:'m/s² @ 12'},
+    {id:'sens-strain-162-2',label:'sens-strain-162',val:'4.8',unit:'°C'},
+    {id:'sens-accel-spire-2',label:'sens-accel-spire',val:'0.012',unit:'m/s² RMS'}
+  ];
+  const products = [
+    {t:'GCC Maritime & Port Congestion Predictive Engine',p:'ACQUIRE & DEPLOY'},
+    {t:'UAE Wadi & Urban Drainage Extreme Hydrology Simulator',p:'ACQUIRE & DEPLOY'},
+    {t:'Aegis Structural Sentinel 3.0',p:'ACQUIRE & DEPLOY'}
+  ];
+
+  // RENDER FUNCTIONS
+  const $ = id => document.getElementById(id);
+  $('topNav').innerHTML = navItems.map(n => `<button class="px-3 py-1.5 rounded-md text-xs tracking-wider transition-all flex items-center gap-2 text-[#5a6478] hover:text-[#00e5ff] hover:bg-[#00e5ff]/5">${n}</button>`).join('');
+  $('sideNav').innerHTML = sideItems.map(s => `<button class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-[#5a6478] hover:text-[#00e5ff] hover:bg-[#00e5ff]/5"><div class="flex items-center gap-2"><i data-lucide="${s.i}" class="w-3 h-3"></i><span>${s.n}</span></div>${s.badge?`<span class="w-5 h-5 rounded-full bg-[#00e5ff]/20 text-[#00e5ff] text-[10px] flex items-center justify-center">${s.badge}</span>`:''}</button>`).join('');
+  $('layerList').innerHTML = layers.map((l,i) => `<div class="layer-strip flex items-center gap-3 px-3 py-2 rounded border border-[#ffffff]/10 bg-[#0a0e1a]/30"><div class="w-2 h-2 rounded-full bg-[#00e5ff]"></div><div class="h-8 flex-1 rounded bg-gradient-to-r from-[#00e5ff]/20 to-transparent border border-[#00e5ff]/30 flex items-center px-3 text-xs" style="transform:translateX(${i*4}px)">${l}</div></div>`).join('');
+  $('sensorGrid').innerHTML = sensors.map(s => `<div class="border border-[#ffffff]/10 rounded-lg p-3 bg-[#0a0e1a]/50"><div class="flex items-center justify-between mb-2"><span class="text-[10px] text-[#5a6478]">${s.label}</span><button class="text-[10px] text-[#00e5ff] hover:underline flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i>RECALIBRATE NOW</button></div><div class="text-lg font-bold text-[#00e5ff]">${s.val} <span class="text-xs text-[#5a6478]">${s.unit}</span></div></div>`).join('');
+  $('marketplaceList').innerHTML = products.map(p => `<div class="p-3 border border-[#ffffff]/10 rounded-lg bg-[#0a0e1a]/50 hover:border-[#00e5ff]/40 transition-all cursor-pointer"><span class="text-[9px] text-[#00e5ff]">PRODUCT</span><h4 class="text-xs font-bold text-[#f0f4f4] mb-2">${p.t}</h4><button class="w-full py-1.5 rounded border border-[#00e5ff]/40 text-[#00e5ff] text-[10px] hover:bg-[#00e5ff]/20 transition-all">${p.p}</button></div>`).join('');
+
+  // MAP INIT
+  setTimeout(() => {
+    const map = L.map('map').setView([25.2048, 55.2708], 10);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {attribution: '© CARTO'}).addTo(map);
+    L.circle([25.2048, 55.2708], {radius: 5000, color: '#00e5ff', fillColor: '#00e5ff', fillOpacity: 0.1}).addTo(map);
+    L.circle([24.4539, 54.3773], {radius: 4000, color: '#00ff88', fillColor: '#00ff88', fillOpacity: 0.1}).addTo(map);
+  }, 100);
+
+  // RE-INIT ICONS AFTER DOM MANIPULATION
+  lucide.createIcons();
+
+  // THREE.JB ORB VISUALIZATION WITH DYNAMIC BUFFER GEOMETRY
+  let orbScene, orbCamera, orbRenderer, orbParticles, orbGeometry;
+  
+  function initOrb() {
+    const canvas = document.getElementById('orb-canvas');
+    if (!canvas) return;
+    
+    orbScene = new THREE.Scene();
+    orbCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+    orbCamera.position.z = 30;
+    
+    orbRenderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    orbRenderer.setSize(192, 192);
+    orbRenderer.setPixelRatio(window.devicePixelRatio);
+    
+    // Create particle system with dynamic buffer geometry
+    const particleCount = 500;
+    orbGeometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+    
+    // Initialize particles in spherical distribution
+    for (let i = 0; i < particleCount; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const radius = 8 + Math.random() * 4;
+      
+      positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = radius * Math.cos(phi);
+      
+      // Cyan to blue gradient
+      colors[i * 3] = 0;
+      colors[i * 3 + 1] = 0.8 + Math.random() * 0.2;
+      colors[i * 3 + 2] = 1;
+      
+      sizes[i] = Math.random() * 0.5 + 0.2;
+    }
+    
+    // Set usage to dynamic for runtime updates (FIXES BUFFER SIZE ERROR)
+    const positionAttribute = new THREE.BufferAttribute(positions, 3);
+    positionAttribute.setUsage(THREE.DynamicDrawUsage);
+    orbGeometry.setAttribute('position', positionAttribute);
+    
+    const colorAttribute = new THREE.BufferAttribute(colors, 3);
+    colorAttribute.setUsage(THREE.DynamicDrawUsage);
+    orbGeometry.setAttribute('color', colorAttribute);
+    
+    const sizeAttribute = new THREE.BufferAttribute(sizes, 1);
+    sizeAttribute.setUsage(THREE.DynamicDrawUsage);
+    orbGeometry.setAttribute('size', sizeAttribute);
+    
+    // Particle material
+    const material = new THREE.PointsMaterial({
+      size: 0.3,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.8,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    
+    orbParticles = new THREE.Points(orbGeometry, material);
+    orbScene.add(orbParticles);
+    
+    // Add central glow sphere
+    const glowGeometry = new THREE.SphereGeometry(3, 32, 32);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00e5ff,
+      transparent: true,
+      opacity: 0.3,
+      blending: THREE.AdditiveBlending
+    });
+    const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
+    orbScene.add(glowSphere);
+    
+    animateOrb();
+  }
+  
+  function animateOrb() {
+    requestAnimationFrame(animateOrb);
+    
+    if (orbParticles && orbGeometry) {
+      const positions = orbGeometry.attributes.position.array;
+      const time = Date.now() * 0.001;
+      
+      // Animate particles with orbital motion
+      for (let i = 0; i < positions.length; i += 3) {
+        const x = positions[i];
+        const y = positions[i + 1];
+        const z = positions[i + 2];
+        
+        // Rotate around Y axis
+        const cosTime = Math.cos(time * 0.5);
+        const sinTime = Math.sin(time * 0.5);
+        positions[i] = x * cosTime - z * sinTime;
+        positions[i + 2] = x * sinTime + z * cosTime;
+        
+        // Add subtle pulsing
+        const pulse = 1 + Math.sin(time * 2 + i) * 0.05;
+        positions[i] *= pulse;
+        positions[i + 1] *= pulse;
+        positions[i + 2] *= pulse;
+      }
+      
+      // Mark geometry as needing update (CRITICAL FIX)
+      orbGeometry.attributes.position.needsUpdate = true;
+      
+      // Rotate entire particle system
+      orbParticles.rotation.y = time * 0.1;
+      orbParticles.rotation.z = time * 0.05;
+    }
+    
+    if (orbRenderer && orbScene && orbCamera) {
+      orbRenderer.render(orbScene, orbCamera);
+    }
+  }
+  
+  // Handle window resize
+  function handleResize() {
+    if (orbRenderer && orbCamera) {
+      const container = document.querySelector('.orb-container');
+      if (container) {
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+        orbCamera.aspect = width / height;
+        orbCamera.updateProjectionMatrix();
+        orbRenderer.setSize(width, height);
+      }
+    }
+  }
+  
+  // Initialize orb after DOM is ready
+  setTimeout(() => {
+    initOrb();
+    window.addEventListener('resize', handleResize);
+  }, 200);
+</script>
+</body>
+</html>
