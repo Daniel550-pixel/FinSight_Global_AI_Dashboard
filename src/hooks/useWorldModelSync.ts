@@ -10,13 +10,19 @@ export function useWorldModelSync() {
   useEffect(() => {
     if (!isLive) return;
 
+    let cancelled = false;
+    let reconnectAttempts = 0;
+
     const connect = () => {
+      if (cancelled) return;
+
       const token = import.meta.env.VITE_ARCHOS_API_TOKEN;
       const url = `${import.meta.env.VITE_ARCHOS_API_URL}/ws/world-model?token=${token}`;
       
       wsRef.current = new WebSocket(url);
 
       wsRef.current.onopen = () => {
+        reconnectAttempts = 0; // Reset on successful connection
         setWsConnected(true);
         console.log('[ArchOS] World Model WebSocket connected');
       };
@@ -37,24 +43,31 @@ export function useWorldModelSync() {
       };
 
       wsRef.current.onclose = () => {
+        if (cancelled) return; // Don't reconnect if intentionally closed
+        
         setWsConnected(false);
-        // Exponential backoff reconnect
+        
+        // Only reconnect on unexpected closes (not intentional teardown)
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+        reconnectAttempts++;
         reconnectTimeoutRef.current = setTimeout(connect, delay);
       };
 
       wsRef.current.onerror = (err) => {
         console.error('[ArchOS] WebSocket error:', err);
-        wsRef.current?.close();
+        if (!cancelled) {
+          wsRef.current?.close();
+        }
       };
     };
 
-    let reconnectAttempts = 0;
     connect();
 
     return () => {
+      cancelled = true;
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       wsRef.current?.close();
+      wsRef.current = null;
     };
   }, [isLive, setWsConnected, updateSyncTimestamp]);
 

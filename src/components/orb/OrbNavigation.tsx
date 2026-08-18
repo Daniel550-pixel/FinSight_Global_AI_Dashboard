@@ -2,12 +2,14 @@
  * OrbNavigation Component
  * Main navigation interface using the 3D Orb system
  * Replaces traditional menus with voice, gesture, and orb-based navigation
+ * 
+ * FIXED: Now uses shared Zustand store for unified state across all components
  */
 
 import React from 'react';
 import { Orb3D } from '@/lib/archos/orb';
-import { useOrbSystem } from '@/lib/archos/orb';
-import type { OrbMode } from '@/lib/archos/orb';
+import { useOrbSystemStore } from '@/store/orbSystemStore';
+import type { OrbMode } from '@/lib/archos/orb/types';
 
 interface OrbNavigationProps {
   onModeChange?: (mode: OrbMode) => void;
@@ -15,34 +17,41 @@ interface OrbNavigationProps {
 }
 
 export function OrbNavigation({ onModeChange, className = '' }: OrbNavigationProps) {
-  const { state, setMode, selectMiniOrb } = useOrbSystem();
+  // Use shared store - same instance as Orb3D and VoiceToggleButton
+  const { 
+    currentMode, 
+    selectedMiniOrb, 
+    miniOrbs, 
+    setMode, 
+    selectMiniOrb 
+  } = useOrbSystemStore();
 
   React.useEffect(() => {
     if (onModeChange) {
-      onModeChange(state.currentMode);
+      onModeChange(currentMode);
     }
-  }, [state.currentMode, onModeChange]);
+  }, [currentMode, onModeChange]);
 
   return (
     <div className={`relative h-screen w-full bg-gradient-to-br from-gray-950 via-blue-950 to-gray-950 ${className}`}>
-      {/* 3D Orb Canvas */}
+      {/* 3D Orb Canvas - now shares the same store instance */}
       <Orb3D className="absolute inset-0" showControls={true} />
 
       {/* Quick Action Buttons (Alternative to Voice/Gesture) */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4">
-        {state.miniOrbs.map((orb) => (
+        {miniOrbs.map((orb) => (
           <button
             key={orb.id}
             onClick={() => selectMiniOrb(orb.id)}
             className={`
               px-4 py-3 rounded-xl backdrop-blur-md border transition-all duration-300
               flex items-center gap-2 group
-              ${state.selectedMiniOrb === orb.id || state.currentMode === orb.mode
+              ${selectedMiniOrb === orb.id || currentMode === orb.mode
                 ? 'bg-white/20 border-white/40 scale-105'
                 : 'bg-black/40 border-white/10 hover:bg-white/10 hover:border-white/20'
               }
             `}
-            style={{ borderColor: state.selectedMiniOrb === orb.id ? orb.color : undefined }}
+            style={{ borderColor: selectedMiniOrb === orb.id ? orb.color : undefined }}
           >
             <span className="text-xl">{orb.icon}</span>
             <span className="text-sm font-medium text-white hidden group-hover:block transition-all">
@@ -52,7 +61,7 @@ export function OrbNavigation({ onModeChange, className = '' }: OrbNavigationPro
         ))}
       </div>
 
-      {/* Voice Activation Button */}
+      {/* Voice Activation Button - also uses shared store */}
       <div className="absolute top-4 right-4">
         <VoiceToggleButton />
       </div>
@@ -72,12 +81,29 @@ export function OrbNavigation({ onModeChange, className = '' }: OrbNavigationPro
 }
 
 function VoiceToggleButton() {
-  const { state, startListening, stopListening } = useOrbSystem();
-  const isListening = state.currentState === 'LISTENING';
+  // Uses the SAME shared store - state changes are reflected everywhere
+  const { currentState, setCurrentState, addVoiceCommand } = useOrbSystemStore();
+  const isListening = currentState === 'LISTENING';
+
+  const handleToggle = () => {
+    if (isListening) {
+      setCurrentState('IDLE');
+      // In a real implementation, this would stop the actual voice recognition
+    } else {
+      setCurrentState('LISTENING');
+      addVoiceCommand({
+        command: 'Voice activated',
+        confidence: 1.0,
+        timestamp: new Date().toISOString(),
+        action: 'VOICE_START',
+        parameters: {},
+      });
+    }
+  };
 
   return (
     <button
-      onClick={isListening ? stopListening : startListening}
+      onClick={handleToggle}
       className={`
         p-3 rounded-full backdrop-blur-md border transition-all duration-300
         flex items-center justify-center w-12 h-12

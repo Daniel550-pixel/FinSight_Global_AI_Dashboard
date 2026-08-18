@@ -25,7 +25,7 @@ interface ArchOSState {
 
 export const useArchOSStore = create<ArchOSState>((set) => ({
   activeLocationId: 'loc-dxb-downtown-01',
-  visibleLayers: ['TERRAIN', 'PLANNING', 'CONSTRAINTS'],
+  visibleLayers: ['terrain', 'planning', 'constraints'],
   selectedEntityId: null,
   intelligence: null,
   layers: [],
