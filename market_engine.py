@@ -67,6 +67,56 @@ def advance_ohlcv(frame: pd.DataFrame, seed: int = 17) -> pd.DataFrame:
     return pd.concat([frame, row]).tail(240)
 
 
+YAHOO_SYMBOLS = {
+    "SPX": "^GSPC",
+    "NDX": "^NDX",
+    "BTC": "BTC-USD",
+    "GOLD": "GC=F",
+    "BRENT": "BZ=F",
+    "EURUSD": "EURUSD=X",
+}
+
+
+def fetch_live_ohlcv(symbol: str, period: str = "2d", interval: str = "5m") -> pd.DataFrame | None:
+    """Fetch recent OHLCV bars from Yahoo Finance. Returns None on provider failure."""
+    try:
+        import yfinance as yf
+
+        ticker = YAHOO_SYMBOLS.get(symbol, symbol)
+        raw = yf.download(
+            ticker,
+            period=period,
+            interval=interval,
+            auto_adjust=False,
+            progress=False,
+            threads=False,
+        )
+        if raw is None or raw.empty:
+            return None
+
+        if isinstance(raw.columns, pd.MultiIndex):
+            raw.columns = [column[0] for column in raw.columns]
+
+        raw = raw.rename(columns={
+            "Open": "Open",
+            "High": "High",
+            "Low": "Low",
+            "Close": "Close",
+            "Volume": "Volume",
+        })
+        required = ["Open", "High", "Low", "Close", "Volume"]
+        if any(column not in raw.columns for column in required):
+            return None
+
+        frame = raw[required].dropna().copy()
+        frame["Volume"] = frame["Volume"].fillna(0).astype(float)
+        frame.index = pd.to_datetime(frame.index)
+        return frame.tail(240)
+
+    except Exception:
+        return None
+
+
 def add_indicators(frame: pd.DataFrame) -> pd.DataFrame:
     df = frame.copy()
     close = df["Close"]
