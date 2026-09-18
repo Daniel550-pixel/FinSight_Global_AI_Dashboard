@@ -11,6 +11,12 @@ from engine.replay.session import ReplaySession
 from engine.quant.pipeline import QuantPipeline
 
 
+@st.cache_data(show_spinner=False)
+def build_replay_session(frame: pd.DataFrame, symbol: str) -> ReplaySession:
+    """Cache immutable replay construction so navigation does not rebuild the event log."""
+    return ReplaySession.from_ohlcv(frame.tail(240), symbol=symbol)
+
+
 def render_replay_lab(frame: pd.DataFrame, symbol: str) -> None:
     st.markdown(
         '<div class="hero"><div class="smallcaps">QUANT RESEARCH / REPLAY</div>'
@@ -19,7 +25,7 @@ def render_replay_lab(frame: pd.DataFrame, symbol: str) -> None:
         unsafe_allow_html=True,
     )
 
-    session = ReplaySession.from_ohlcv(frame.tail(240), symbol=symbol)
+    session = build_replay_session(frame, symbol)
     pipeline = QuantPipeline(initial_cash=100_000, max_position=100)
 
     start = session.start_ns
