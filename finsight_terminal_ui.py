@@ -187,7 +187,7 @@ elif page == "Markets":
     st.markdown('<div class="hero"><div class="smallcaps">LIVE MARKET LAB</div><h1>Markets</h1><div class="hero-sub">Streaming OHLCV charts, regime detection and paper-only chart actions.</div></div>', unsafe_allow_html=True)
 
     import plotly.graph_objects as go
-    from market_engine import seed_ohlcv, advance_ohlcv, analyze_market, fetch_live_ohlcv
+    from market_engine import seed_ohlcv, advance_ohlcv, analyze_market, analyze_chart_type, fetch_live_ohlcv
 
     try:
         from streamlit_autorefresh import st_autorefresh
@@ -255,7 +255,7 @@ elif page == "Markets":
         frame = st.session_state.market_streams[selected_symbol]
 
     st.session_state.market_tick = st.session_state.get("market_tick", 0) + 1
-    analysis = analyze_market(frame)
+    analysis = analyze_chart_type(frame, chart_type)
     data = analysis["data"]
 
     action = analysis["action"]
