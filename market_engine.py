@@ -267,3 +267,89 @@ def analyze_market(df: pd.DataFrame) -> dict:
         "reasons": reasons[-5:],
         "data": x,
     }
+
+
+def analyze_chart_type(df: pd.DataFrame, chart_type: str) -> dict:
+    """Apply chart-specific confirmation on top of the broader market analysis."""
+    base = analyze_market(df)
+    x = base["data"]
+    row = x.iloc[-1]
+    extra_score = 0
+    extra_reasons = []
+
+    if chart_type == "Candlestick":
+        pattern = base["pattern"]
+        if pattern in ("Strong bullish candle", "Hammer"):
+            extra_score += 12
+            extra_reasons.append(f"Candlestick confirmation: {pattern}.")
+        elif pattern in ("Strong bearish candle", "Shooting star"):
+            extra_score -= 12
+            extra_reasons.append(f"Candlestick confirmation: {pattern}.")
+    elif chart_type == "MACD momentum":
+        if row["MACD"] > row["MACDSignal"] and row["MACDHist"] > 0:
+            extra_score += 18
+            extra_reasons.append("MACD line and histogram confirm positive momentum.")
+        elif row["MACD"] < row["MACDSignal"] and row["MACDHist"] < 0:
+            extra_score -= 18
+            extra_reasons.append("MACD line and histogram confirm negative momentum.")
+        else:
+            extra_reasons.append("MACD signals are mixed.")
+    elif chart_type == "RSI":
+        rsi = float(row["RSI14"]) if np.isfinite(row["RSI14"]) else 50.0
+        if 52 <= rsi <= 68:
+            extra_score += 10
+            extra_reasons.append("RSI is in a constructive momentum zone.")
+        elif rsi >= 70:
+            extra_score -= 8
+            extra_reasons.append("RSI is overbought; momentum may be stretched.")
+        elif rsi <= 30:
+            extra_score += 8
+            extra_reasons.append("RSI is oversold; downside may be exhausted.")
+    elif chart_type == "Volume":
+        ratio = float(base["volume_ratio"])
+        if ratio >= 1.5 and base["score"] > 0:
+            extra_score += 12
+            extra_reasons.append(f"Volume is elevated at {ratio:.1f}× its 20-bar average.")
+        elif ratio >= 1.5 and base["score"] < 0:
+            extra_score -= 12
+            extra_reasons.append(f"Heavy volume confirms selling pressure at {ratio:.1f}× average.")
+        else:
+            extra_reasons.append("Volume does not materially confirm the current trend.")
+    elif chart_type == "Line + trend":
+        if row["EMA12"] > row["EMA26"] and row["Close"] > row["SMA20"]:
+            extra_score += 14
+            extra_reasons.append("Short-term trend lines are aligned bullishly.")
+        elif row["EMA12"] < row["EMA26"] and row["Close"] < row["SMA20"]:
+            extra_score -= 14
+            extra_reasons.append("Short-term trend lines are aligned bearishly.")
+    elif chart_type == "Area":
+        if row["Close"] > row["SMA20"] and row["Return20"] > 0:
+            extra_score += 10
+            extra_reasons.append("Price structure remains above its 20-bar trend.")
+        elif row["Close"] < row["SMA20"] and row["Return20"] < 0:
+            extra_score -= 10
+            extra_reasons.append("Price structure remains below its 20-bar trend.")
+    elif chart_type == "Return distribution":
+        returns = x["Return1"].dropna()
+        skew = float(returns.skew()) if len(returns) > 2 else 0.0
+        if skew > 0.35:
+            extra_score += 5
+            extra_reasons.append("Return distribution has positive skew.")
+        elif skew < -0.35:
+            extra_score -= 5
+            extra_reasons.append("Return distribution has negative skew.")
+
+    score = int(np.clip(base["score"] + extra_score, -100, 100))
+    regime = "BULLISH" if score >= 40 else "BEARISH" if score <= -40 else "NEUTRAL"
+    action = "PAPER BUY" if score >= 60 else "PAPER SELL" if score <= -60 else "HOLD"
+    confidence = int(np.clip(55 + abs(score) * 0.42, 55, 96))
+
+    return {
+        **base,
+        "score": score,
+        "regime": regime,
+        "action": action,
+        "confidence": confidence,
+        "chart_signal": chart_type,
+        "reasons": (base["reasons"] + extra_reasons)[-6:],
+    }
