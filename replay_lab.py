@@ -41,7 +41,8 @@ def render_replay_lab(frame: pd.DataFrame, symbol: str) -> None:
 
     processed = session.replay(pipeline.on_bar, end_ns=replay_end)
     state = pipeline.snapshot()
-    last_event = processed[-1] if processed else None
+    replay_events = [event for event in session.events if event.timestamp_ns <= replay_end]
+    last_event = replay_events[-1] if replay_events else None
 
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Events", f"{state['events_processed']:,}")
