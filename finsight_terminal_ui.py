@@ -184,25 +184,228 @@ if page == "Overview":
         st.markdown("</div>", unsafe_allow_html=True)
 
 elif page == "Markets":
-    st.markdown('<div class="hero"><div class="smallcaps">MARKET MONITOR</div><h1>Markets</h1><div class="hero-sub">Prices, momentum, volatility and cross-asset regime context.</div></div>', unsafe_allow_html=True)
-    a,b,c,d=st.columns(4); a.metric("Breadth","61% Advancing","+7.2 pts"); b.metric("Volatility","18.4","Normal"); c.metric("Liquidity","Healthy","Stable"); d.metric("Regime","Risk-On","Moderate")
-    tab1,tab2,tab3=st.tabs(["Overview","Cross-Asset","Watchlist"])
-    with tab1:
-        l,r=st.columns([1.55,1])
-        with l:
-            st.markdown('<div class="panel"><div class="panel-header"><div class="panel-title">Index performance</div><div class="panel-subtitle">Demo session</div></div>', unsafe_allow_html=True)
-            st.line_chart(pd.DataFrame({"S&P 500":100*np.cumprod(1+rng.normal(.0004,.009,len(dates))),"Nasdaq 100":100*np.cumprod(1+rng.normal(.0007,.011,len(dates))),"Gold":100*np.cumprod(1+rng.normal(.0002,.007,len(dates)))},index=dates),height=350,use_container_width=True)
-            st.markdown("</div>",unsafe_allow_html=True)
-        with r:
-            st.markdown('<div class="panel"><div class="panel-header"><div class="panel-title">Signal distribution</div><div class="panel-subtitle">Model state</div></div>', unsafe_allow_html=True)
-            st.dataframe(pd.DataFrame({"Asset":["Equities","Technology","Crypto","Gold","Energy","FX"],"Signal":[78,84,46,69,31,58]}),hide_index=True,use_container_width=True,column_config={"Signal":st.column_config.ProgressColumn("Signal",min_value=0,max_value=100,format="%d")})
-            st.markdown("</div>",unsafe_allow_html=True)
-    with tab2:
-        st.dataframe(assets.style.format({"Price":"{:,.4f}","1D":"{:+.2f}%","Vol":"{:.1f}%"}),hide_index=True,use_container_width=True)
-    with tab3:
-        q=st.text_input("Search watchlist",placeholder="Symbol or asset name")
-        shown=assets if not q else assets[assets.apply(lambda row:q.lower() in row.astype(str).str.lower().str.cat(sep=" "),axis=1)]
-        st.dataframe(shown.style.format({"Price":"{:,.4f}","1D":"{:+.2f}%","Vol":"{:.1f}%"}),hide_index=True,use_container_width=True)
+    st.markdown('<div class="hero"><div class="smallcaps">LIVE MARKET LAB</div><h1>Markets</h1><div class="hero-sub">Streaming OHLCV charts, regime detection and paper-only chart actions.</div></div>', unsafe_allow_html=True)
+
+    try:
+        from streamlit_autorefresh import st_autorefresh
+    except ImportError:
+        st_autorefresh = None
+    import plotly.graph_objects as go
+
+    # Persistent simulated streams. A real provider can replace these frames later.
+    from market_engine import seed_ohlcv, advance_ohlcv, analyze_market
+
+    symbols = ["SPX", "NDX", "BTC", "GOLD", "BRENT", "EURUSD"]
+    profiles = {
+        "SPX": "S&P 500",
+        "NDX": "Nasdaq 100",
+        "BTC": "Bitcoin",
+        "GOLD": "Gold",
+        "BRENT": "Brent Crude",
+        "EURUSD": "Euro / U.S. Dollar",
+    }
+
+    if "market_streams" not in st.session_state:
+        st.session_state.market_streams = {
+            symbol: seed_ohlcv(symbol, bars=240, seed=17)
+            for symbol in symbols
+        }
+    if "paper_actions" not in st.session_state:
+        st.session_state.paper_actions = []
+    if "last_paper_action" not in st.session_state:
+        st.session_state.last_paper_action = {}
+
+    c1, c2, c3, c4 = st.columns(4)
+    selected_symbol = c1.selectbox(
+        "Instrument",
+        symbols,
+        format_func=lambda s: f"{s} · {profiles[s]}",
+    )
+    chart_type = c2.selectbox(
+        "Chart type",
+        ["Candlestick", "Line + trend", "Area", "MACD momentum", "RSI", "Volume", "Return distribution"],
+    )
+    auto_refresh = c3.toggle("Streaming", value=True)
+    auto_action = c4.toggle("Auto-action", value=False)
+
+    if auto_refresh:
+        if st_autorefresh is not None:
+            st_autorefresh(interval=1500, key="finsight_market_stream")
+        else:
+            st.warning("Install streamlit-autorefresh to enable automatic streaming. Manual refresh still works.")
+
+    # One new market bar per Streamlit cycle.
+    if auto_refresh or "market_tick" not in st.session_state:
+        st.session_state.market_streams[selected_symbol] = advance_ohlcv(
+            st.session_state.market_streams[selected_symbol]
+        )
+        st.session_state.market_tick = st.session_state.get("market_tick", 0) + 1
+
+    frame = st.session_state.market_streams[selected_symbol]
+    analysis = analyze_market(frame)
+    data = analysis["data"]
+
+    action = analysis["action"]
+    action_class = "up" if action == "PAPER BUY" else "down" if action == "PAPER SELL" else "flat"
+    regime_class = "up" if analysis["regime"] == "BULLISH" else "down" if analysis["regime"] == "BEARISH" else "flat"
+
+    if auto_action and action != "HOLD":
+        previous = st.session_state.last_paper_action.get(selected_symbol)
+        if previous != action:
+            st.session_state.paper_actions.insert(
+                0,
+                {
+                    "Timestamp": pd.Timestamp.now().strftime("%H:%M:%S"),
+                    "Symbol": selected_symbol,
+                    "Action": action,
+                    "Regime": analysis["regime"],
+                    "Score": analysis["score"],
+                    "Confidence": f"{analysis['confidence']}%",
+                    "Reason": analysis["pattern"],
+                },
+            )
+            st.session_state.last_paper_action[selected_symbol] = action
+            st.session_state.paper_actions = st.session_state.paper_actions[:20]
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Last price", f"{analysis['price']:,.4f}")
+    m2.metric("Bar return", f"{data['Return1'].iloc[-1]:+.2f}%")
+    m3.metric("Regime", analysis["regime"], f"Score {analysis['score']:+d}")
+    m4.metric("RSI 14", f"{analysis['rsi']:.1f}", "Momentum")
+    m5.metric("Decision", action, f"{analysis['confidence']}% confidence")
+
+    st.markdown('<div class="section-gap"></div>', unsafe_allow_html=True)
+    left, right = st.columns([1.65, .8])
+
+    with left:
+        st.markdown(
+            f'<div class="panel"><div class="panel-header">'
+            f'<div><div class="panel-title">{selected_symbol} · {profiles[selected_symbol]}</div>'
+            f'<div class="panel-subtitle">5-minute simulated stream · tick {st.session_state.get("market_tick", 0)}</div></div>'
+            f'<span class="pill {"green" if analysis["regime"] == "BULLISH" else "red" if analysis["regime"] == "BEARISH" else ""}">{analysis["regime"]}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        visible = data.tail(100)
+
+        fig = go.Figure()
+        if chart_type == "Candlestick":
+            fig.add_trace(
+                go.Candlestick(
+                    x=visible.index,
+                    open=visible["Open"],
+                    high=visible["High"],
+                    low=visible["Low"],
+                    close=visible["Close"],
+                    name="OHLC",
+                    increasing_line_color="#43d17a",
+                    decreasing_line_color="#ff6176",
+                )
+            )
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["SMA20"], mode="lines", name="SMA20", line=dict(color="#63d7ff", width=1.4)))
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["SMA50"], mode="lines", name="SMA50", line=dict(color="#9f8bff", width=1.2)))
+        elif chart_type == "Line + trend":
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["Close"], mode="lines", name="Close", line=dict(color="#63d7ff", width=2)))
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["EMA12"], mode="lines", name="EMA12", line=dict(color="#43d17a", width=1.2)))
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["EMA26"], mode="lines", name="EMA26", line=dict(color="#e9ad4b", width=1.2)))
+        elif chart_type == "Area":
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["Close"], mode="lines", fill="tozeroy", name="Price", line=dict(color="#63d7ff", width=1.8)))
+        elif chart_type == "MACD momentum":
+            fig.add_trace(go.Bar(x=visible.index, y=visible["MACDHist"], name="Histogram"))
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["MACD"], mode="lines", name="MACD", line=dict(color="#63d7ff", width=1.6)))
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["MACDSignal"], mode="lines", name="Signal", line=dict(color="#e9ad4b", width=1.2)))
+        elif chart_type == "RSI":
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["RSI14"], mode="lines", name="RSI 14", line=dict(color="#9f8bff", width=1.8)))
+            fig.add_hline(y=70, line_dash="dot", line_color="#ff6176")
+            fig.add_hline(y=30, line_dash="dot", line_color="#43d17a")
+            fig.update_yaxes(range=[0, 100])
+        elif chart_type == "Volume":
+            fig.add_trace(go.Bar(x=visible.index, y=visible["Volume"], name="Volume"))
+            fig.add_trace(go.Scatter(x=visible.index, y=visible["VolumeMA20"], mode="lines", name="Volume MA20", line=dict(color="#63d7ff", width=1.2)))
+        else:
+            returns = data["Return1"].dropna()
+            fig.add_trace(go.Histogram(x=returns, nbinsx=35, name="1-bar returns"))
+
+        fig.update_layout(
+            height=500,
+            margin=dict(l=5, r=5, t=10, b=5),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font=dict(color="#edf2f7", size=11),
+            xaxis=dict(showgrid=False, rangeslider=dict(visible=False)),
+            yaxis=dict(showgrid=True, gridcolor="rgba(128,145,160,.10)", zeroline=False),
+            legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with right:
+        st.markdown(
+            f'<div class="ai-box"><div class="ai-title">CHART INTELLIGENCE ENGINE</div>'
+            f'<div class="ai-headline {regime_class}">{analysis["regime"]} · {action}</div>'
+            f'<div class="ai-body">The engine combines trend alignment, MACD, RSI, candle structure and range breaks into a single paper-trading state.</div>'
+            f'<div style="margin-top:.55rem"><span class="mini-tag">{analysis["pattern"]}</span>'
+            f'<span class="mini-tag">RSI {analysis["rsi"]:.1f}</span><span class="mini-tag">ATR {analysis["atr_pct"]:.2f}%</span></div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<div class="panel-header"><div class="panel-title">Reasoning trace</div><div class="panel-subtitle">Explainable signal inputs</div></div>', unsafe_allow_html=True)
+        for reason in analysis["reasons"]:
+            st.markdown(f'<div class="feed"><div class="feed-title">{html.escape(reason)}</div></div>', unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='section-gap'></div>", unsafe_allow_html=True)
+        st.markdown('<div class="panel">', unsafe_allow_html=True)
+        st.markdown('<div class="panel-header"><div class="panel-title">Paper action control</div><div class="panel-subtitle">Simulation only</div></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="matrix-cell"><div class="matrix-name">ENGINE DECISION</div>'
+            f'<div class="matrix-value {action_class}">{action}</div>'
+            f'<div class="feed-meta">Confidence {analysis["confidence"]}% · Score {analysis["score"]:+d}</div></div>',
+            unsafe_allow_html=True,
+        )
+        st.caption("Auto-action can record simulated BUY/SELL events. It cannot submit a live broker order.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="section-gap"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header"><div class="panel-title">Multi-market regime board</div><div class="panel-subtitle">Each instrument is independently analyzed</div></div>', unsafe_allow_html=True)
+    rows = []
+    for symbol in symbols:
+        current = st.session_state.market_streams[symbol]
+        result = analyze_market(current)
+        rows.append(
+            {
+                "Symbol": symbol,
+                "Price": result["price"],
+                "Regime": result["regime"],
+                "Score": result["score"],
+                "Action": result["action"],
+                "Confidence": f"{result['confidence']}%",
+                "Pattern": result["pattern"],
+            }
+        )
+    board = pd.DataFrame(rows)
+    st.dataframe(
+        board.style.format({"Price": "{:,.4f}", "Score": "{:+d}"}),
+        hide_index=True,
+        use_container_width=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div class="section-gap"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header"><div class="panel-title">Paper action ledger</div><div class="panel-subtitle">Triggered only by the simulation engine</div></div>', unsafe_allow_html=True)
+    if st.session_state.paper_actions:
+        st.dataframe(pd.DataFrame(st.session_state.paper_actions), hide_index=True, use_container_width=True)
+    else:
+        st.caption("No paper actions recorded. Enable Auto-action and wait for a signal transition.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
 
 elif page == "Portfolio":
     st.markdown('<div class="hero"><div class="smallcaps">PORTFOLIO CONTROL</div><h1>Portfolio</h1><div class="hero-sub">Positions, attribution, allocation and portfolio-level risk.</div></div>', unsafe_allow_html=True)
