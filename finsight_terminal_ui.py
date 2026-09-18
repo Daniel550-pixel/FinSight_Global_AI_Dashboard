@@ -186,14 +186,13 @@ if page == "Overview":
 elif page == "Markets":
     st.markdown('<div class="hero"><div class="smallcaps">LIVE MARKET LAB</div><h1>Markets</h1><div class="hero-sub">Streaming OHLCV charts, regime detection and paper-only chart actions.</div></div>', unsafe_allow_html=True)
 
+    import plotly.graph_objects as go
+    from market_engine import seed_ohlcv, advance_ohlcv, analyze_market, fetch_live_ohlcv
+
     try:
         from streamlit_autorefresh import st_autorefresh
     except ImportError:
         st_autorefresh = None
-    import plotly.graph_objects as go
-
-    # Persistent simulated streams. A real provider can replace these frames later.
-    from market_engine import seed_ohlcv, advance_ohlcv, analyze_market
 
     symbols = ["SPX", "NDX", "BTC", "GOLD", "BRENT", "EURUSD"]
     profiles = {
@@ -214,42 +213,65 @@ elif page == "Markets":
         st.session_state.paper_actions = []
     if "last_paper_action" not in st.session_state:
         st.session_state.last_paper_action = {}
+    if "live_data_cache" not in st.session_state:
+        st.session_state.live_data_cache = {}
 
-    c1, c2, c3, c4 = st.columns(4)
-    selected_symbol = c1.selectbox(
+    a, b, c, d = st.columns(4)
+    selected_symbol = a.selectbox(
         "Instrument",
         symbols,
         format_func=lambda s: f"{s} · {profiles[s]}",
     )
-    chart_type = c2.selectbox(
+    chart_type = b.selectbox(
         "Chart type",
         ["Candlestick", "Line + trend", "Area", "MACD momentum", "RSI", "Volume", "Return distribution"],
     )
-    auto_refresh = c3.toggle("Streaming", value=True)
-    auto_action = c4.toggle("Auto-action", value=False)
+    source = c.selectbox("Data source", ["Simulation", "Live / Yahoo Finance"])
+    auto_refresh = d.toggle("Streaming", value=True)
 
     if auto_refresh:
         if st_autorefresh is not None:
-            st_autorefresh(interval=1500, key="finsight_market_stream")
+            st_autorefresh(interval=1500 if source == "Simulation" else 5000, key="finsight_market_stream")
         else:
-            st.warning("Install streamlit-autorefresh to enable automatic streaming. Manual refresh still works.")
+            st.warning("Automatic refresh is unavailable until streamlit-autorefresh is installed.")
 
-    # One new market bar per Streamlit cycle.
-    if auto_refresh or "market_tick" not in st.session_state:
-        st.session_state.market_streams[selected_symbol] = advance_ohlcv(
-            st.session_state.market_streams[selected_symbol]
-        )
-        st.session_state.market_tick = st.session_state.get("market_tick", 0) + 1
+    # Live provider: refresh the selected instrument; cache failures back to simulation.
+    data_is_live = False
+    if source == "Live / Yahoo Finance":
+        live = fetch_live_ohlcv(selected_symbol)
+        if live is not None and len(live) >= 60:
+            frame = live
+            st.session_state.market_streams[selected_symbol] = frame
+            st.session_state.live_data_cache[selected_symbol] = frame
+            data_is_live = True
+        else:
+            frame = st.session_state.live_data_cache.get(selected_symbol, st.session_state.market_streams[selected_symbol])
+            st.info("Live provider returned no usable bars for this instrument; showing the latest available stream.")
+    else:
+        if auto_refresh or "market_tick" not in st.session_state:
+            st.session_state.market_streams[selected_symbol] = advance_ohlcv(
+                st.session_state.market_streams[selected_symbol]
+            )
+        frame = st.session_state.market_streams[selected_symbol]
 
-    frame = st.session_state.market_streams[selected_symbol]
+    st.session_state.market_tick = st.session_state.get("market_tick", 0) + 1
     analysis = analyze_market(frame)
     data = analysis["data"]
 
     action = analysis["action"]
     action_class = "up" if action == "PAPER BUY" else "down" if action == "PAPER SELL" else "flat"
     regime_class = "up" if analysis["regime"] == "BULLISH" else "down" if analysis["regime"] == "BEARISH" else "flat"
+    source_label = "LIVE" if data_is_live else "SIMULATION"
 
-    if auto_action and action != "HOLD":
+    if "auto_action" not in st.session_state:
+        st.session_state.auto_action = False
+    st.session_state.auto_action = st.toggle(
+        "Paper auto-action",
+        value=st.session_state.auto_action,
+        help="Records simulated BUY/SELL events when the chart intelligence engine crosses an action threshold. No live order is sent.",
+    )
+
+    if st.session_state.auto_action and action != "HOLD":
         previous = st.session_state.last_paper_action.get(selected_symbol)
         if previous != action:
             st.session_state.paper_actions.insert(
@@ -261,7 +283,8 @@ elif page == "Markets":
                     "Regime": analysis["regime"],
                     "Score": analysis["score"],
                     "Confidence": f"{analysis['confidence']}%",
-                    "Reason": analysis["pattern"],
+                    "Pattern": analysis["pattern"],
+                    "Source": source_label,
                 },
             )
             st.session_state.last_paper_action[selected_symbol] = action
@@ -278,54 +301,83 @@ elif page == "Markets":
     left, right = st.columns([1.65, .8])
 
     with left:
+        regime_pill = "green" if analysis["regime"] == "BULLISH" else "red" if analysis["regime"] == "BEARISH" else ""
         st.markdown(
             f'<div class="panel"><div class="panel-header">'
             f'<div><div class="panel-title">{selected_symbol} · {profiles[selected_symbol]}</div>'
-            f'<div class="panel-subtitle">5-minute simulated stream · tick {st.session_state.get("market_tick", 0)}</div></div>'
-            f'<span class="pill {"green" if analysis["regime"] == "BULLISH" else "red" if analysis["regime"] == "BEARISH" else ""}">{analysis["regime"]}</span>'
-            f'</div>',
+            f'<div class="panel-subtitle">5-minute bars · {source_label} · tick {st.session_state.market_tick}</div></div>'
+            f'<span class="pill {regime_pill}">{analysis["regime"]}</span></div>',
             unsafe_allow_html=True,
         )
 
         visible = data.tail(100)
-
         fig = go.Figure()
+
         if chart_type == "Candlestick":
-            fig.add_trace(
-                go.Candlestick(
-                    x=visible.index,
-                    open=visible["Open"],
-                    high=visible["High"],
-                    low=visible["Low"],
-                    close=visible["Close"],
-                    name="OHLC",
-                    increasing_line_color="#43d17a",
-                    decreasing_line_color="#ff6176",
-                )
-            )
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["SMA20"], mode="lines", name="SMA20", line=dict(color="#63d7ff", width=1.4)))
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["SMA50"], mode="lines", name="SMA50", line=dict(color="#9f8bff", width=1.2)))
+            fig.add_trace(go.Candlestick(
+                x=visible.index,
+                open=visible["Open"],
+                high=visible["High"],
+                low=visible["Low"],
+                close=visible["Close"],
+                name="OHLC",
+                increasing_line_color="#43d17a",
+                decreasing_line_color="#ff6176",
+            ))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["SMA20"], mode="lines",
+                name="SMA20", line=dict(color="#63d7ff", width=1.4)
+            ))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["SMA50"], mode="lines",
+                name="SMA50", line=dict(color="#9f8bff", width=1.2)
+            ))
         elif chart_type == "Line + trend":
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["Close"], mode="lines", name="Close", line=dict(color="#63d7ff", width=2)))
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["EMA12"], mode="lines", name="EMA12", line=dict(color="#43d17a", width=1.2)))
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["EMA26"], mode="lines", name="EMA26", line=dict(color="#e9ad4b", width=1.2)))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["Close"], mode="lines",
+                name="Close", line=dict(color="#63d7ff", width=2)
+            ))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["EMA12"], mode="lines",
+                name="EMA12", line=dict(color="#43d17a", width=1.2)
+            ))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["EMA26"], mode="lines",
+                name="EMA26", line=dict(color="#e9ad4b", width=1.2)
+            ))
         elif chart_type == "Area":
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["Close"], mode="lines", fill="tozeroy", name="Price", line=dict(color="#63d7ff", width=1.8)))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["Close"], mode="lines", fill="tozeroy",
+                name="Price", line=dict(color="#63d7ff", width=1.8)
+            ))
         elif chart_type == "MACD momentum":
             fig.add_trace(go.Bar(x=visible.index, y=visible["MACDHist"], name="Histogram"))
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["MACD"], mode="lines", name="MACD", line=dict(color="#63d7ff", width=1.6)))
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["MACDSignal"], mode="lines", name="Signal", line=dict(color="#e9ad4b", width=1.2)))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["MACD"], mode="lines",
+                name="MACD", line=dict(color="#63d7ff", width=1.6)
+            ))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["MACDSignal"], mode="lines",
+                name="Signal", line=dict(color="#e9ad4b", width=1.2)
+            ))
         elif chart_type == "RSI":
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["RSI14"], mode="lines", name="RSI 14", line=dict(color="#9f8bff", width=1.8)))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["RSI14"], mode="lines",
+                name="RSI 14", line=dict(color="#9f8bff", width=1.8)
+            ))
             fig.add_hline(y=70, line_dash="dot", line_color="#ff6176")
             fig.add_hline(y=30, line_dash="dot", line_color="#43d17a")
             fig.update_yaxes(range=[0, 100])
         elif chart_type == "Volume":
             fig.add_trace(go.Bar(x=visible.index, y=visible["Volume"], name="Volume"))
-            fig.add_trace(go.Scatter(x=visible.index, y=visible["VolumeMA20"], mode="lines", name="Volume MA20", line=dict(color="#63d7ff", width=1.2)))
+            fig.add_trace(go.Scatter(
+                x=visible.index, y=visible["VolumeMA20"], mode="lines",
+                name="Volume MA20", line=dict(color="#63d7ff", width=1.2)
+            ))
         else:
-            returns = data["Return1"].dropna()
-            fig.add_trace(go.Histogram(x=returns, nbinsx=35, name="1-bar returns"))
+            fig.add_trace(go.Histogram(
+                x=data["Return1"].dropna(), nbinsx=35, name="1-bar returns"
+            ))
 
         fig.update_layout(
             height=500,
@@ -345,10 +397,10 @@ elif page == "Markets":
         st.markdown(
             f'<div class="ai-box"><div class="ai-title">CHART INTELLIGENCE ENGINE</div>'
             f'<div class="ai-headline {regime_class}">{analysis["regime"]} · {action}</div>'
-            f'<div class="ai-body">The engine combines trend alignment, MACD, RSI, candle structure and range breaks into a single paper-trading state.</div>'
+            f'<div class="ai-body">Trend alignment, MACD, RSI, candle structure, range breaks and volatility are combined into a paper-trading state.</div>'
             f'<div style="margin-top:.55rem"><span class="mini-tag">{analysis["pattern"]}</span>'
-            f'<span class="mini-tag">RSI {analysis["rsi"]:.1f}</span><span class="mini-tag">ATR {analysis["atr_pct"]:.2f}%</span></div>'
-            f'</div>',
+            f'<span class="mini-tag">RSI {analysis["rsi"]:.1f}</span><span class="mini-tag">ATR {analysis["atr_pct"]:.2f}%</span>'
+            f'<span class="mini-tag">{source_label}</span></div></div>',
             unsafe_allow_html=True,
         )
 
@@ -368,42 +420,35 @@ elif page == "Markets":
             f'<div class="feed-meta">Confidence {analysis["confidence"]}% · Score {analysis["score"]:+d}</div></div>',
             unsafe_allow_html=True,
         )
-        st.caption("Auto-action can record simulated BUY/SELL events. It cannot submit a live broker order.")
+        st.caption("This engine records simulated actions only. It cannot submit a live broker order.")
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="section-gap"></div>', unsafe_allow_html=True)
     st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown('<div class="panel-header"><div class="panel-title">Multi-market regime board</div><div class="panel-subtitle">Each instrument is independently analyzed</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header"><div class="panel-title">Multi-market regime board</div><div class="panel-subtitle">Simulation board; selected live feed is shown above when enabled.</div></div>', unsafe_allow_html=True)
     rows = []
     for symbol in symbols:
         current = st.session_state.market_streams[symbol]
         result = analyze_market(current)
-        rows.append(
-            {
-                "Symbol": symbol,
-                "Price": result["price"],
-                "Regime": result["regime"],
-                "Score": result["score"],
-                "Action": result["action"],
-                "Confidence": f"{result['confidence']}%",
-                "Pattern": result["pattern"],
-            }
-        )
-    board = pd.DataFrame(rows)
-    st.dataframe(
-        board.style.format({"Price": "{:,.4f}", "Score": "{:+d}"}),
-        hide_index=True,
-        use_container_width=True,
-    )
+        rows.append({
+            "Symbol": symbol,
+            "Price": result["price"],
+            "Regime": result["regime"],
+            "Score": result["score"],
+            "Action": result["action"],
+            "Confidence": f"{result['confidence']}%",
+            "Pattern": result["pattern"],
+        })
+    st.dataframe(pd.DataFrame(rows).style.format({"Price": "{:,.4f}", "Score": "{:+d}"}), hide_index=True, use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown('<div class="section-gap"></div>', unsafe_allow_html=True)
     st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown('<div class="panel-header"><div class="panel-title">Paper action ledger</div><div class="panel-subtitle">Triggered only by the simulation engine</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-header"><div class="panel-title">Paper action ledger</div><div class="panel-subtitle">Triggered by the chart intelligence engine</div></div>', unsafe_allow_html=True)
     if st.session_state.paper_actions:
         st.dataframe(pd.DataFrame(st.session_state.paper_actions), hide_index=True, use_container_width=True)
     else:
-        st.caption("No paper actions recorded. Enable Auto-action and wait for a signal transition.")
+        st.caption("No paper actions recorded. Enable Paper auto-action and wait for a signal transition.")
     st.markdown("</div>", unsafe_allow_html=True)
 
 
