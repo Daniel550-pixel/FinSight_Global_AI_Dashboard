@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from replay_lab import render_replay_lab
+
 st.set_page_config(
     page_title="FinSight Global",
     page_icon="◈",
@@ -95,7 +97,7 @@ news = [
     ("Commodities","Energy weakness is pressuring the near-term inflation impulse.","51 min ago"),
 ]
 
-NAV = ["Overview","Markets","Portfolio","Intelligence","Risk","Strategies","Backtesting","Execution","Alerts"]
+NAV = ["Overview","Markets","Portfolio","Intelligence","Risk","Strategies","Backtesting","Replay Lab","Execution","Alerts"]
 
 @st.fragment(run_every=1.5, key="market_stream")
 def render_markets_workspace():
@@ -503,6 +505,20 @@ def render_finsight_app():
             st.markdown("</div>",unsafe_allow_html=True)
         st.dataframe(pd.DataFrame({"Strategy":["Global Momentum","Risk Parity","Trend + Macro","Adaptive Allocation"],"State":["READY","DESIGN","DESIGN","RESEARCH"],"Target Vol":["12%","10%","14%","DYNAMIC"],"Next":["Historical data","Risk model","Macro factors","Signal research"]}),hide_index=True,use_container_width=True)
     
+    elif page == "Replay Lab":
+        if "market_streams" not in st.session_state:
+            from market_engine import seed_ohlcv
+            st.session_state.market_streams = {
+                symbol: seed_ohlcv(symbol, bars=240, seed=17)
+                for symbol in ["SPX", "NDX", "BTC", "GOLD", "BRENT", "EURUSD"]
+            }
+        replay_symbol = st.selectbox(
+            "Replay instrument",
+            ["SPX", "NDX", "BTC", "GOLD", "BRENT", "EURUSD"],
+            key="replay_symbol",
+        )
+        render_replay_lab(st.session_state.market_streams[replay_symbol], replay_symbol)
+
     elif page == "Backtesting":
         st.markdown('<div class="hero"><div class="smallcaps">QUANT RESEARCH</div><h1>Backtesting</h1><div class="hero-sub">Research strategies against historical data with costs, slippage and risk metrics.</div></div>',unsafe_allow_html=True)
         a,b,c,d=st.columns(4); a.metric("CAGR","14.8%","Demo"); b.metric("Sharpe","1.31","Demo"); c.metric("Max Drawdown","-11.4%","Demo"); d.metric("Win Rate","58.2%","Demo")
