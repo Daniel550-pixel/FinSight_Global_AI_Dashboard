@@ -81,6 +81,7 @@ class QuantPipeline:
             "position": self.state.position,
             "cash": self.state.cash,
             "last_price": self.state.last_price,
+            "realized_pnl": self.state.realized_pnl,
             "equity": equity,
             "events_processed": self.state.events_processed,
             "open_orders": len(self.executor.orders),
